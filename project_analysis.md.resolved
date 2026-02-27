@@ -1,0 +1,571 @@
+# 📊 PHÂN TÍCH TOÀN DIỆN DỰ ÁN: VAN TRANG EDU (tinhoc)
+
+## 🏢 Tổng Quan Dự Án
+
+**Tên hệ thống:** Hệ thống Quản lý Học viên & Đào tạo — **Van Trang Edu** (Trung tâm Tiếng Anh Vân Trang)  
+**Ngôn ngữ:** Tiếng Việt (giao diện & dữ liệu), hỗ trợ song ngữ Việt-Anh cho SEO  
+**Mục đích:** Nền tảng quản lý toàn diện cho một trung tâm đào tạo tiếng Anh & luyện thi chứng chỉ (VSTEP, IELTS, TOEIC)
+
+---
+
+## 🏗️ Kiến Trúc Hệ Thống
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  CLOUDFLARE PLATFORM                │
+│                                                     │
+│  Frontend (Pages)          Backend (Workers)        │
+│  React + Vite + Tailwind  ←→  Hono.js API           │
+│                                                     │
+│  Storage:  D1 (SQLite)   R2 (Files/Videos)          │
+│  Images:   Cloudflare Images (CF-Images service)    │
+│  AI:       Cloudflare Workers AI                    │
+│  Calendar: Google Calendar API + Google Meet        │
+└─────────────────────────────────────────────────────┘
+```
+
+### Hạ tầng chi tiết
+| Thành phần | Công nghệ | Tên/ID |
+|---|---|---|
+| Backend Runtime | Cloudflare Workers (Hono.js) | `tinhoc-api` |
+| Database | Cloudflare D1 (SQLite) | `tinhoc_db` |
+| File Storage | Cloudflare R2 | `tinhoc-files` |
+| Video Storage | Cloudflare R2 | `class-videos` |
+| Image CDN | Cloudflare Images | Account: `5b62d10947...` |
+| Frontend Build | Vite + React + Tailwind CSS | Cloudflare Pages |
+| Google Integration | Google Calendar API + Meet | Service Account |
+| AI | Cloudflare Workers AI | Binding: `AI` |
+
+---
+
+## 🗄️ Cơ Sở Dữ Liệu — Toàn Bộ Schema
+
+Hệ thống có **30+ bảng** (tables) được migrate qua **33 file migration**.
+
+### Nhóm 1: Người Dùng & Xác Thực
+| Bảng | Mô tả | Trường chính |
+|---|---|---|
+| `admins` | Quản trị viên | `username`, `password_hash`, `role` (super_admin/admin/staff), `email`, `phone` |
+| `teachers` | Giáo viên | `teacher_code`, `ho_ten_full`, `email`, `sdt`, `password_hash`, `department`, `position`, `status` |
+| `students` | Học viên | `cccd` (UNIQUE), [ho](file:///home/namhbcf/Desktop/thongtin/backend/src/routes/students.js#161-163), `ten_dem`, `ten`, `ho_ten_full`, `ngay_sinh`, `noi_sinh`, `gioi_tinh`, `email`, `sdt`, `dia_chi`, `dan_toc`, `quoc_tich`, `ngay_cap_cccd`, `don_vi_cong_tac`, ảnh CCCD front/back, ảnh 3x4 |
+| `password_reset_tokens` | Reset mật khẩu admin | `token`, `expires_at`, `used` |
+
+### Nhóm 2: Lớp Học & Đăng Ký
+| Bảng | Mô tả | Trường chính |
+|---|---|---|
+| `classes` | Lớp học (offline) | `ten_lop`, `ma_lop`, `ngay_bat_dau`, `ngay_ket_thuc`, `hoc_phi`, `open_at`, `close_at`, `status` (open/closed/completed/cancelled), `class_type` (hoc/thi/tin_chi), `max_students` |
+| `registrations` | Đăng ký lớp | `student_id`, `class_id`, `so_phach`, `status` (pending/approved/studying/completed/certified/cancelled) |
+| `class_schedules` | Lịch học cụ thể | `class_id`, `day_of_week`, `start_time`, `end_time`, `room`, `meeting_link` |
+| `class_teachers` | Phân công GV | `class_id`, `teacher_id`, `role` (teacher/assistant/coordinator) |
+
+### Nhóm 3: Lớp Online
+| Bảng | Mô tả | Trường chính |
+|---|---|---|
+| `online_classes` | Lớp học trực tuyến | `class_name`, `teacher_name`, `meet_link`, `calendar_event_id`, `schedule_rule`, `schedule_time`, `timezone`, `start_date`, `end_date`, `max_students`, `status` |
+| `online_class_enrollments` | Đăng ký lớp online | `online_class_id`, `student_id`, `status` (pending/active/cancelled/rejected), `rejection_reason` |
+
+### Nhóm 4: Kỳ Thi
+| Bảng | Mô tả | Trường chính |
+|---|---|---|
+| `exam_schedules` | Lịch thi (bình thường) | `class_id`, `exam_name`, `exam_date`, `duration_minutes`, `location`, `notes`, `template_id`, `zoom_link`, `zoom_meeting_id`, `zoom_passcode`, `exam_test_id`, `deleted_at` (soft delete) |
+| `exam_registrations` | Đăng ký thi | `exam_id`, `student_id`, `status` (pending/approved/registered/cancelled/attended/rejected) |
+| `exam_types` | Loại kỳ thi | `name`, `code`, `description` |
+| `exam_tests` | Đề thi VSTEP | `title`, `exam_type_id`, `level`, `duration_minutes`, `total_questions`, `pass_score`, `status` |
+| `exam_sections` | Phần thi | `exam_test_id`, `section_type` (reading/listening/writing/speaking), `title`, `order_num` |
+| `exam_question_groups` | Nhóm câu hỏi | `section_id`, `passage`, `audio_url`, `instructions`, `order_num` |
+| `exam_questions` | Câu hỏi | `section_id`, `group_id`, `question_text`, `option_a/b/c/d`, `correct_answer`, `question_type`, `order_num`, `parent_id` |
+| `exam_registrations_platform` | Đăng ký nền tảng thi | `student_id`, `exam_test_id`, `status`, `approved_by` |
+| `exam_attempts` | Lần làm bài | `student_id`, `exam_test_id`, `started_at`, `submitted_at`, `score` |
+| `exam_answers` | Câu trả lời | `attempt_id`, `question_id`, `answer_text` |
+
+#### VSTEP System (bảng riêng)
+| Bảng | Mô tả |
+|---|---|
+| `vstep_exams` | Đề thi VSTEP (B1/B2/C1) |
+| `vstep_sections` | Các section thi |
+| `vstep_question_groups` | Nhóm câu hỏi với passage |
+| `vstep_questions` | Câu hỏi VSTEP |
+| `vstep_attempts` | Lần làm bài VSTEP |
+| `vstep_answers` | Câu trả lời VSTEP |
+
+### Nhóm 5: Tài Liệu & Bài Tập
+| Bảng | Mô tả | Trường chính |
+|---|---|---|
+| `documents` | Tài liệu học tập | `title`, `file_url`, `r2_key`, `doc_type` (general/class/personal/announcement), `folder_id`, `valid_from`, `valid_until`, `visibility` |
+| `document_permissions` | Phân quyền tài liệu | `document_id`, `permission_type` (public/class/student/admin), `class_id`, `online_class_id`, `student_id` |
+| `document_downloads` | Tracking tải tài liệu | `document_id`, `student_id`, `ip_address`, `user_agent` |
+| `document_folders` | Thư mục tài liệu | `name`, `description`, `parent_id`, `class_id`, `order_num` |
+| `assignments` | Bài tập | `class_id`, `title`, `description`, `due_date`, `max_score` |
+| `assignment_submissions` | Nộp bài | `assignment_id`, `student_id`, `content`, `file_url`, `score` |
+
+### Nhóm 6: Tài Chính & Chứng Chỉ
+| Bảng | Mô tả | Trường chính |
+|---|---|---|
+| `payments` | Thanh toán học phí | `registration_id`, `amount`, `method` (bank_transfer/cash/other), `transaction_code`, `receipt_image_url`, `status` (pending/confirmed/rejected/refunded), `confirmed_by` |
+| `certificates` | Chứng chỉ | `student_id`, `class_id`, `certificate_number` (UNIQUE), `title`, `issued_date`, `pdf_url`, `status` (active/revoked) |
+
+### Nhóm 7: Nội Dung & Truyền Thông
+| Bảng | Mô tả | Trường chính |
+|---|---|---|
+| [posts](file:///home/namhbcf/Desktop/thongtin/backend/src/index.js#122-131) | Bài viết/Tin tức | `title`, `content`, `slug` (UNIQUE), `category` (announcement/news/guide/event/other), `status` (draft/published/archived), `featured_image`, `view_count` |
+| `notifications` | Thông báo | `user_id`, `user_type` (student/admin/all), `title`, `message`, `type`, `read` |
+| `homepage_settings` | Cấu hình trang chủ | `setting_key`, `setting_value`, `value_type` |
+| `messages` | Nhắn tin nội bộ | `sender_id`, `sender_type`, `receiver_id`, `receiver_type`, `content` |
+
+### Nhóm 8: Hệ Thống
+| Bảng | Mô tả |
+|---|---|
+| `attendance` | Điểm danh học viên |
+| `activity_logs` | Nhật ký hoạt động admin |
+| `audit_logs` | Audit log toàn hệ thống |
+| `excel_templates` | Mẫu Excel xuất dữ liệu |
+| `student_edit_history` | Lịch sử chỉnh sửa thông tin học viên |
+| `class_videos` | Video bài giảng |
+| `video_memberships` | Quyền xem video |
+
+---
+
+## 🔌 Backend API — 29 Route Groups
+
+Backend: **Hono.js** chạy trên **Cloudflare Workers**  
+Endpoint gốc: `https://tinhoc-api.{workers-account}.workers.dev`
+
+### Xác Thực (Auth)
+**`/auth`** — [auth.js](file:///home/namhbcf/Desktop/thongtin/backend/src/routes/auth.js)
+- `POST /auth/login` — Admin login (JWT)
+- `POST /auth/refresh` — Refresh token
+- `GET /auth/me` — Lấy thông tin admin hiện tại
+
+**`/students/login`** & **`/students/register`**
+- `POST /students/login` — Sinh viên đăng nhập bằng **CCCD + SĐT** → JWT
+- `POST /students/register` — Đăng ký tài khoản học viên (public)
+
+**`/teachers`** (login riêng cho giáo viên)
+
+### Quản Lý Học Viên (`/students`)
+| Endpoint | Phương thức | Mô tả |
+|---|---|---|
+| `/students` | GET | Danh sách tất cả học viên (có pagination) |
+| `/students/search?q=` | GET | Tìm kiếm theo tên, CCCD, SĐT, email |
+| `/students/:cccd` | GET | Lấy thông tin theo CCCD |
+| `/students/:id` | PUT | Admin cập nhật thông tin |
+| `/students/:id/history` | GET | Lịch sử chỉnh sửa |
+| `/students/:id` | DELETE | Xóa học viên |
+| `/students/update-by-cccd` | PUT | Học viên tự cập nhật |
+| `/students/admin` | POST | Admin tạo học viên mới |
+| `/students/upload-image` | POST | Upload ảnh (max 50MB, lưu R2) |
+| `/students/image/:key` | GET | Phục vụ ảnh từ R2 |
+
+### Lớp Học Offline (`/classes`)
+- CRUD đầy đủ: tạo, cập nhật, xóa, xem lớp học
+- Class types: `hoc` (học), [thi](file:///home/namhbcf/Desktop/thongtin/backend/src/routes/online-classes.js#203-230) (thi), `tin_chi` (tín chỉ)
+- Status: open → closed → completed / cancelled
+- Quản lý số học viên tối đa
+
+### Lớp Online (`/online-classes`) — **Tính năng phức tạp nhất**
+| Endpoint | Mô tả |
+|---|---|
+| `GET /online-classes` | Danh sách (ẩn meet_link với người chưa đăng ký) |
+| `GET /online-classes/:id` | Chi tiết + trạng thái có thể tham gia |
+| `POST /online-classes/:id/enroll` | Học viên đăng ký (→ pending) |
+| `GET /online-classes/:id/enrollments` | Danh sách học viên đang học |
+| `GET /online-classes/:id/pending-enrollments` | Danh sách chờ duyệt |
+| `PUT /online-classes/:id/enrollments/:enrollId` | Duyệt/từ chối |
+| `POST /online-classes/:id/students` | Admin thêm học viên trực tiếp |
+| `GET /online-classes/:id/my-status` | Trạng thái đăng ký của học viên |
+| `GET /online-classes/test-google-auth` | Debug Google Calendar auth |
+
+**Logic đặc biệt:**
+- **Google Calendar Integration**: Tự động tạo event Google Calendar + Google Meet link khi tạo lớp online
+- **Auto-sync Meet Link**: Nếu có `calendar_event_id` mà thiếu `meet_link`, tự động fetch từ Google Calendar
+- **Time-gated Access**: Học viên chỉ được join trong giờ học (± buffer 15 phút sau)
+- **Enrollment Workflow**: Đăng ký → pending → admin duyệt → active
+- **Privacy**: `meet_link` bị ẩn với người chưa được duyệt đăng ký
+
+### Lịch Thi (`/exam-schedules`)
+| Endpoint | Mô tả |
+|---|---|
+| `GET /exam-schedules` | Tất cả lịch thi (admin) |
+| `GET /exam-schedules/upcoming` | Lịch thi sắp tới |
+| `GET /exam-schedules/my-exams` | Lịch thi của học viên |
+| `GET /exam-schedules/trash` | Thùng rác (soft delete) |
+| `GET /exam-schedules/conflicts` | Học viên đăng ký nhiều kỳ thi |
+| `POST /exam-schedules` | Tạo lịch thi (hỗ trợ Zoom link/ID/passcode) |
+| `PUT /exam-schedules/:id` | Cập nhật |
+| `DELETE /exam-schedules/:id` | Soft delete (→ thùng rác) |
+| `POST /exam-schedules/:id/restore` | Khôi phục từ thùng rác |
+| `DELETE /exam-schedules/:id/permanent` | Xóa vĩnh viễn |
+| `POST /exam-schedules/:id/register` | Học viên đăng ký thi |
+| `POST /exam-schedules/:id/cancel` | Hủy đăng ký thi |
+| `GET /exam-schedules/:id/students` | Danh sách thí sinh |
+| `POST /exam-schedules/:id/students` | Admin thêm thí sinh (bulk) |
+| `POST /exam-schedules/:id/approve/:sid` | Duyệt 1 thí sinh |
+| `POST /exam-schedules/:id/approve-all` | Duyệt tất cả |
+| `POST /exam-schedules/:id/reject/:sid` | Từ chối thí sinh |
+
+**Tính năng đặc biệt:**
+- Mỗi học viên chỉ được đăng ký tối đa **2 kỳ thi** cùng lúc
+- Soft delete với thùng rác — có thể khôi phục trong **7 ngày**
+- Zoom link integration (link, meeting ID, passcode)
+- Khi duyệt thi → tự động đăng ký vào `exam_test` liên kết
+
+### VSTEP Exam Platform (`/vstep`)
+| Endpoint | Mô tả |
+|---|---|
+| `GET /vstep/exams` | Danh sách đề thi VSTEP |
+| `GET /vstep/exams/:id` | Chi tiết + câu hỏi (ẩn đáp án với student) |
+| `POST /vstep/attempts` | Bắt đầu làm bài |
+| `POST /vstep/attempts/:id/save` | Auto-save câu trả lời |
+| `POST /vstep/attempts/:id/submit` | Nộp bài |
+| `POST /vstep/import` | Admin import đề thi từ JSON |
+
+**Đặc điểm:** Trả về đề thi đầy đủ cấu trúc (sections → groups → questions). Với student: ẩn `correct_answer`. Admin: xem đầy đủ.
+
+### Tài Liệu (`/documents`, `/document-folders`)
+- Upload, quản lý tài liệu học tập
+- Phân quyền 4 cấp: `public` / `class` / [student](file:///home/namhbcf/Desktop/thongtin/backend/src/routes/online-classes.js#130-190) / [admin](file:///home/namhbcf/Desktop/thongtin/backend/src/routes/online-classes.js#119-129)
+- Thư mục có hierarchy (folder cha-con)
+- Tracking download theo học viên
+- Hỗ trợ `valid_from` / `valid_until` (tài liệu có hạn)
+
+### Thanh Toán (`/payments`) — Yêu cầu Auth
+- Record thanh toán học phí
+- Xác nhận/từ chối/hoàn tiền
+- Upload ảnh biên lai
+- Phương thức: bank_transfer, cash, other
+
+### Chứng Chỉ (`/certificates`)
+- Cấp chứng chỉ (public lookup)
+- Tra cứu theo số chứng chỉ (public)
+- Admin: cấp/thu hồi chứng chỉ, upload PDF
+
+### Giao Tiếp & Thông Báo
+- **`/notifications`** — Thông báo hệ thống (push cho học viên/admin/all)
+- **`/messaging`** — Nhắn tin nội bộ giữa các vai trò
+- **`/posts`** — Quản lý bài viết (GET public, CUD cần auth admin)
+
+### Giáo Viên (`/teachers`)
+- Login riêng cho giáo viên
+- Xem danh sách lớp được phân công
+- Quản lý bài tập, điểm danh, lịch dạy
+
+### Video Bài Giảng (tại `/`, [videos.js](file:///home/namhbcf/Desktop/thongtin/backend/src/routes/videos.js))
+- Upload video vào R2 `class-videos`
+- Presigned URL để stream an toàn
+- Quản lý quyền xem (`video_memberships`)
+
+### Bài Tập (`/assignments`)
+- Giáo viên tạo bài tập cho lớp
+- Học viên nộp bài (text + file)
+- Chấm điểm theo từng bài nộp
+
+### Điểm Danh (`/attendance`)
+- Điểm danh cho lớp (admin/teacher)
+- Trạng thái: present/absent/late/excused
+- Báo cáo theo buổi / theo học viên
+
+### Báo Cáo (`/reports`) — Admin Only
+- Thống kê học viên, lớp học, thanh toán
+- Báo cáo theo thời gian
+- Export dữ liệu
+
+### Export (`/export`)
+- Xuất danh sách học viên, đăng ký ra Excel
+- Dùng các template Excel có sẵn
+
+### Hệ Thống & Admin Tools
+- **`/admins`** — Quản lý admin (super_admin only)
+- **`/activity-logs`** — Nhật ký hoạt động
+- **`/backup`** — Backup DB (super_admin only)
+- **`/homepage`** — Cấu hình trang chủ
+- **`/templates`** — Quản lý mẫu Excel
+- **`/cccd-upload`** — Upload ảnh CCCD (public)
+- **`/class-schedules`** — Lịch học cụ thể (giờ/phòng) của lớp
+- **`/class-teachers`** — Phân công giáo viên
+
+---
+
+## 🎨 Frontend — Kiến Trúc React
+
+**Tech stack:** React 18 + Vite + Tailwind CSS + React Router DOM  
+**Responsive:** Có 2 giao diện riêng biệt: Desktop và Mobile  
+**Patterns:** Hooks (`useAnalytics`, `useDevice`), Context (Auth), Utils, Lazy loading
+
+### Cấu Trúc Thư Mục Frontend
+```
+frontend/src/
+├── App.jsx           # Router chính (250+ lines, 50+ routes)
+├── pages/
+│   ├── public/       # 20 trang công khai
+│   ├── admin/        # ~80 trang quản trị
+│   ├── teacher/      # ~26 trang giáo viên
+│   └── student/      # ~20 trang học viên
+├── components/       # 80+ components tái sử dụng
+├── utils/            # 15 utility files
+├── styles/           # 21 CSS modules
+├── hooks/            # useAnalytics, useDevice
+├── contexts/         # Auth context
+└── workers/          # Web Worker
+```
+
+---
+
+## 👥 Các Vai Trò & Giao Diện
+
+### 1. 🌐 Trang Công Khai (`/pages/public`)
+20 trang, không cần đăng nhập:
+
+| Route | Trang |
+|---|---|
+| `/` | Trang chủ (HomePage) |
+| `/register` | Đăng ký tài khoản học viên |
+| `/login` | Đăng nhập (Unified — học viên & giáo viên) |
+| `/about` | Giới thiệu trung tâm (nhiều sub-route) |
+| `/training` | Chương trình đào tạo |
+| `/admissions` | Thông tin tuyển sinh |
+| `/research` | Nghiên cứu khoa học |
+| `/connections` | Hợp tác quốc tế & cộng đồng |
+| `/hub4` | Hub4 (Tour, Chatbot, Thư viện) |
+| `/life` | Đời sống học viên |
+| `/units` | Các khoa/đơn vị |
+| `/news`, `/news/:slug` | Tin tức & bài viết chi tiết |
+| `/contact` | Liên hệ |
+| `/certificate/lookup` | Tra cứu chứng chỉ |
+| `/services` | Dịch vụ |
+| `/student-portal` | Cổng học viên (link ngoài) |
+| `/faculty-portal` | Cổng giảng viên (link ngoài) |
+| SEO pages | `/ho-tro-tieng-anh`, `/day-ngon-ngu`, `/trung-tam-tieng-anh`, `/english-support`, `/language-center` |
+
+**SEO Entity Pages** ([SemanticLanding.jsx](file:///home/namhbcf/Desktop/thongtin/frontend/src/pages/public/SemanticLanding.jsx)): 5 trang SEO ngữ nghĩa dạng entity, có FAQ Schema markup, tối ưu cho từ khóa cụ thể.
+
+### 2. 👤 Cổng Học Viên (`/dashboard`)
+Đăng nhập bằng **CCCD + SĐT**, sau đó truy cập:
+
+| Route | Tính năng |
+|---|---|
+| `/dashboard` | Tổng quan — thông tin cá nhân, lớp đang học |
+| `/dashboard/my-classes` | Danh sách lớp đã đăng ký + trạng thái |
+| `/dashboard/register-class` | Đăng ký lớp mới |
+| `/dashboard/payment` | Thanh toán học phí, xem trạng thái |
+| `/dashboard/certificates` | Xem chứng chỉ đã cấp |
+| `/dashboard/documents` | Tài liệu học tập (theo permission) |
+| `/dashboard/schedule` | Lịch học theo lớp |
+| `/dashboard/exams` | Lịch thi & đăng ký thi |
+| `/dashboard/messages` | Nhắn tin |
+| `/dashboard/profile` | Chỉnh sửa thông tin cá nhân, upload ảnh |
+| `/dashboard/online-classes` | Lớp học trực tuyến, join Google Meet |
+| `/student/vstep` | Danh sách đề thi VSTEP |
+| `/student/vstep/take/:id` | Phòng thi VSTEP (VStepExamHall) |
+
+### 3. 👨‍🏫 Cổng Giáo Viên (`/teacher/dashboard`)
+Desktop + Mobile views. Các tính năng:
+
+| Tính năng | Mô tả |
+|---|---|
+| Tổng quan | Thống kê lớp dạy, số học viên |
+| Lớp học | Danh sách lớp được phân công, chi tiết từng lớp |
+| Lịch dạy | Class schedules, lịch cụ thể theo tuần |
+| Điểm danh | Điểm danh học viên theo buổi |
+| Bài tập | Tạo bài tập, xem bài nộp, chấm điểm |
+| Tài liệu | Upload/quản lý tài liệu cho lớp |
+| Học viên | Danh sách học viên trong lớp |
+| Kỳ thi | Quản lý thí sinh, duyệt đăng ký thi |
+| Nhắn tin | Chat với học viên và admin |
+| Profile | Cập nhật thông tin cá nhân |
+
+### 4. 🔧 Cổng Admin (`/admin/dashboard`)
+Hệ thống admin **rất đầy đủ**, có 34+ trang desktop riêng biệt:
+
+| Module | Trang | Mô tả |
+|---|---|---|
+| Tổng quan | `DashboardOverview` | Thống kê nhanh: học viên, lớp, doanh thu, đăng ký mới |
+| Học viên | `StudentsManagement` (46KB!) | Quản lý CRUD học viên, xem ảnh CCCD, lịch sử, tìm kiếm |
+| Lớp học | `ClassesManagement` (40KB) | Tạo/sửa/đóng lớp, gán giáo viên, xem đăng ký |
+| Lớp online | `OnlineClassesManagement` (40KB) | Tạo lớp Google Meet, duyệt đăng ký, quản lý video |
+| Chi tiết lớp | `ClassDetailDashboard` (60KB!) | Tất cả về một lớp: học viên, điểm danh, thanh toán, tài liệu |
+| Kỳ thi | `ExamSchedulesPage` (72KB!) | Lịch thi, đăng ký, danh sách thí sinh, Zoom link, duyệt thí sinh |
+| Giáo viên | `TeachersManagement` | CRUD giáo viên, phân công lớp |
+| Thanh toán | `PaymentsManagement` | Xác nhận học phí, xem biên lai |
+| Chứng chỉ | `CertificatesManagement` | Cấp/thu hồi chứng chỉ, download PDF |
+| Tài liệu | `DocumentsManagement` (32KB) | Upload tài liệu, phân quyền (public/class/student) |
+| Bài tập | `AssignmentsManagement` (22KB) | Quản lý bài tập, xem bài nộp |
+| Bài viết | `PostsManagement` | CMS nội dung: tạo/sửa bài viết, quản lý slug |
+| Đăng ký | `RegistrationsManagement` | Duyệt đăng ký lớp |
+| Báo cáo | `ReportsPage` | Thống kê, biểu đồ |
+| Trang chủ | `HomepageManagement` | Cấu hình động trang chủ |
+| Quản trị viên | `AdminManagement` | CRUD admin (super_admin only) |
+| Nhật ký | `ActivityLogs` | Toàn bộ hoạt động hệ thống |
+| Backup | `BackupPage` | Sao lưu dữ liệu |
+| Profile | `AdminProfile` | Hồ sơ admin |
+| VSTEP | `VStepManager`, `VStepEditor`, `ExcelImportStats` | Quản lý đề thi VSTEP |
+
+---
+
+## 🎓 Hệ Thống Thi VSTEP
+
+Đây là module **quan trọng và phức tạp** nhất:
+
+### Cấu Trúc Đề Thi
+```
+VStepExam (B1/B2/C1)
+└── Sections (Reading / Listening / Writing / Speaking)
+    └── QuestionGroups (có passage text hoặc audio URL)
+        └── Questions (trắc nghiệm A/B/C/D hoặc tự luận)
+```
+
+### Luồng Làm Bài
+1. Học viên vào `/student/vstep` → danh sách đề thi published
+2. Chọn đề → `/student/vstep/take/:id` mở **VStepExamHall**
+3. Tạo attempt → làm bài → auto-save từng câu
+4. Submit → hệ thống chấm điểm (Reading/Listening auto-grade)
+
+### Admin
+- Import đề từ JSON (có Python scripts trong `/exam/`)
+- Editor đề thi tại `/admin/vstep/new` và `/admin/vstep/:id`
+- Xem thống kê import tại `/admin/vstep/import`
+- Có 7 file JSON mẫu đề VSTEP B1/B2/C1
+
+---
+
+## 🔐 Hệ Thống Xác Thực
+
+| Vai trò | Cách đăng nhập | Token Type |
+|---|---|---|
+| Admin | username + password → JWT | `role: admin/super_admin/staff` |
+| Teacher | teacher_code/email + password → JWT | `role: teacher` |
+| Student | CCCD + SĐT → JWT | `type: student` |
+
+**Đặc điểm:**
+- JWT-based auth (HS256)
+- Student có thể xác thực qua `X-Student-CCCD` header (fallback không cần JWT)
+- Rate limiting (disabled trong dev): `moderateRateLimiter`, `strictRateLimiter`
+- Password reset flow cho admin
+- Session management
+
+---
+
+## 📁 Hệ Thống File & Ảnh
+
+### Cloudflare R2
+- **`tinhoc-files`**: Tài liệu, Excel templates, ảnh học viên (fallback)
+- **`class-videos`**: Video bài giảng online
+
+### Cloudflare Images
+- Upload ảnh CCCD (mặt trước/mặt sau) và ảnh 3x4
+- Signed URLs (có thời hạn 2 giờ) để bảo mật
+- Fallback về R2 nếu không cấu hình Cloudflare Images
+
+### Upload Flow
+1. Student upload qua `/students/upload-image` (max 50MB, hỗ trợ RAW)
+2. Lưu vào R2 với key `student-images/{timestamp}-{filename}`
+3. Hoặc upload qua `/cccd-upload` → Cloudflare Images
+
+---
+
+## 🛠️ Utilities & Tools
+
+### Backend Utils
+| File | Mô tả |
+|---|---|
+| `helpers.js` | JWT, response formatting, date utils, text normalization |
+| `cloudflare-images.js` | Signed URL generation cho ảnh |
+| `rateLimiter.js` | Rate limiting configurable per IP/user |
+| `pdfGenerator.js` | Tạo PDF chứng chỉ |
+| `emailService.js` | Gửi email thông báo |
+| `backup.js` | Backup utilities |
+| `sessionManager.js` | Quản lý session |
+| `notificationHelper.js` | Tạo notification |
+| `fileUtils.js` | Xử lý file |
+
+### Frontend Utils
+| File | Mô tả |
+|---|---|
+| `analytics.js` | Analytics tracking (page views, events) |
+| `imageUtils.js` (13KB!) | Xử lý ảnh, compression, canvas |
+| `imageCompression.js` | Nén ảnh trước upload |
+| `excelParser.js` | Parse file Excel |
+| `documentDetection.js` | Phát hiện loại tài liệu |
+| `deviceDetection.js` | Detect mobile/desktop |
+| `dateUtils.js` | Format ngày giờ |
+| `translations.js` | Bản dịch Việt-Anh |
+| `cache.js` | Client-side caching |
+| `errorTracker.js` | Error tracking |
+| `realtimeQuality.js` | Video quality monitoring |
+| `viewportFix.js` | Viewport fix mobile |
+
+---
+
+## 📦 Công Cụ Triển Khai
+
+### Deploy Scripts
+Dự án có **17 script triển khai** cho Windows/Mac/Linux:
+
+| Script | Mô tả |
+|---|---|
+| `deploy.sh / .ps1 / .bat` | Deploy cơ bản |
+| `deploy-tinhoc.sh` | Deploy cả backend + frontend |
+| `deploy-auto.sh` | Deploy tự động với CI/CD |
+| `deploy-now.ps1` | Deploy ngay lập tức có confirm |
+| `auto-deploy.bat` | Auto-deploy Windows |
+| `setup-auto-deploy.ps1` | Setup pipeline tự động |
+| `quick-deploy.bat` | Quick deploy (build + deploy) |
+
+### Migrations
+33 file migration SQL với quy ước `NNNN_description.sql`, theo thứ tự:
+- `0000` → Initial schema (18 bảng cốt lõi)
+- `0002` → VSTEP Schema
+- `0005-0006` → Google Calendar/Meet cho class schedules
+- `0010` → Pending enrollment status
+- `0011-0014` → Document folders & permissions
+- `0015-0016` → Exam registration limits
+- `0017` → Zoom fields cho exam schedules
+
+---
+
+## 📊 Tính Năng Nổi Bật Tổng Hợp
+
+| # | Tính năng | Chi tiết |
+|---|---|---|
+| 1 | **Google Meet Auto-Create** | Tạo lớp online → tự động tạo Google Calendar event + Meet link |
+| 2 | **Dual-Mode Dashboard** | Admin/Teacher/Student đều có giao diện Desktop + Mobile riêng |
+| 3 | **CCCD-based Auth** | Học viên đăng nhập bằng CCCD + SĐT, không cần nhớ mật khẩu |
+| 4 | **VSTEP Exam Platform** | Nền tảng thi trực tuyến đầy đủ với B1/B2/C1, auto-grade |
+| 5 | **Soft Delete** | Lịch thi có thùng rác, khôi phục trong 7 ngày |
+| 6 | **Signed Image URLs** | Ảnh học viên được bảo vệ bằng signed URL 2 giờ |
+| 7 | **Permission System** | Tài liệu phân quyền 4 cấp như Google Drive |
+| 8 | **Activity Logging** | Toàn bộ thao tác admin được ghi log |
+| 9 | **Student Edit History** | Mọi thay đổi thông tin học viên được track |
+| 10 | **SEO Entity Pages** | 5 trang SEO ngữ nghĩa với FAQ schema |
+| 11 | **Zoom Integration** | Lịch thi có Zoom link, sharing ID + passcode |
+| 12 | **Exam Conflict Detection** | Phát hiện học viên đăng ký nhiều kỳ thi cùng lúc |
+| 13 | **Excel Export** | Export danh sách học viên, đăng ký ra Excel với templates |
+| 14 | **Video Streaming** | Video bài giảng stream qua R2 presigned URLs |
+| 15 | **Real-time Quality** | Monitoring chất lượng video trực tuyến |
+| 16 | **Analytics** | Tracking page views, user events |
+| 17 | **Responsive Design** | Tối ưu cho cả mobile và desktop |
+| 18 | **Multi-role Support** | 4 vai trò: super_admin, admin/staff, teacher, student |
+| 19 | **PDF Generation** | Tạo PDF chứng chỉ |
+| 20 | **Image Compression** | Nén ảnh client-side trước upload |
+
+---
+
+## 🔍 Bộ Tài Liệu Đi Kèm
+
+Dự án có **21 file .md docs** bao gồm:
+- `ADMIN_CLASSES_DB_API_DOCUMENTATION.md` — Tài liệu API chi tiết (18KB)
+- `USER_GUIDE.md` — Hướng dẫn sử dụng (13KB)
+- `BUILD_AND_DEPLOY_GUIDE.md` — Hướng dẫn build & deploy (8KB)
+- Các file deploy guides: AUTO_DEPLOY, CLOUDFLARE_IMAGES, DEPLOY_SUCCESS...
+- `FIX_QUESTIONS_DISPLAY.md`, `PERFORMANCE_FIX.md`, `PRODUCTION_ERRORS_FIX.md`
+
+---
+
+## 🚀 Trạng Thái Dự Án
+
+- ✅ **Production-ready**: Đã deployed lên Cloudflare
+- ✅ **Data seeded**: 100 posts mẫu, VSTEP test data
+- ✅ **Google Calendar integrated**: Service Account configured
+- ✅ **Zoom integrated**: Trường zoom_link trong exam_schedules
+- ⚠️ **Rate limiting disabled** for testing
+- ⚠️ **Secrets in wrangler.toml** (should use `wrangler secret put`)
+- 📝 **Students table**: mở rộng nhiều từ schema gốc (cccd_front/back, photo_3x4, dan_toc, quoc_tich, etc.)
