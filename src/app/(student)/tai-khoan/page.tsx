@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import Link from 'next/link';
 
 // TRANG CHỦ BÀN HỌC (DASHBOARD) - Nhẹ mượt, Gọi Action Fetch Database sau

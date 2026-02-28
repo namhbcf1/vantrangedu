@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { DashboardRevenueChart } from './_components/recharts-dashboard';
 
 export default function AdminDashboard() {

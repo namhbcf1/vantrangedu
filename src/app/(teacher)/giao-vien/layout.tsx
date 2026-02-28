@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 // SẼ CODE CỔNG GIÁO VIÊN BẰNG COMPONENTS ADAPTIVE TƯƠNG TỰ SAU KHI XONG STUDENT
 import { isMobileDevice } from '@/lib/device';
 

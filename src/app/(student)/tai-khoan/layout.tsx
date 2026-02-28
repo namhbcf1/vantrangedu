@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { isMobileDevice } from '@/lib/device';
 import { DesktopStudentSidebar } from '@/components/layouts/student/DesktopSidebar';
 import { MobileStudentShell } from '@/components/layouts/student/MobileShell';
