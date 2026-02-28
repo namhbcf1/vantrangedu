@@ -1,4 +1,4 @@
-export const runtime = 'edge';
+export const runtime = "edge";
 export default function HomePage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gradient-to-b from-blue-50 to-white dark:from-slate-900 dark:to-background">

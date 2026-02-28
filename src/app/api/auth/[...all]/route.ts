@@ -1,8 +1,8 @@
+export const runtime = "edge";
 import { getAuth } from "@/lib/auth";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { NextRequest } from "next/server";
 
-export const runtime = "edge"; // Chạy 100% trên Cloudflare Edge !
 
 export async function GET(req: NextRequest) {
   // Trích xuất D1 Database binding từ context của Cloudflare

@@ -1,4 +1,4 @@
-export const runtime = 'edge';
+export const runtime = "edge";
 import { isMobileDevice } from '@/lib/device';
 import { DesktopSidebar } from '@/components/layouts/admin/DesktopSidebar';
 import { MobileAdminShell } from '@/components/layouts/admin/MobileShell';

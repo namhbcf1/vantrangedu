@@ -1,9 +1,9 @@
+export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { getFileFromR2 } from "@/server/storage/r2";
 import { getAuth } from "@/lib/auth";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 
-export const runtime = "edge";
 
 export async function GET(
   request: NextRequest,

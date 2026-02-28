@@ -1,3 +1,4 @@
+export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { createDb } from "@/server/db";
@@ -5,7 +6,6 @@ import { payments } from "@/server/db/schema/payments";
 import { classEnrollments } from "@/server/db/schema/classes";
 import { eq } from "drizzle-orm";
 
-export const runtime = "edge";
 
 // BỘ TRẢM WEBHOOK SEPAY: Bắt tiền rơi tự động vào tài khoản D1
 export async function POST(req: NextRequest) {

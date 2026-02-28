@@ -1,4 +1,4 @@
-export const runtime = 'edge';
+export const runtime = "edge";
 import { Suspense } from 'react';
 import { isMobileDevice } from '@/lib/device';
 import { getStudents } from './actions';
