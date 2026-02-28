@@ -1,6 +1,4 @@
 "use server";
-export const runtime = "edge";
-export const runtime = "edge";
 
 import { getRequestContext } from '@cloudflare/next-on-pages';
 import { createDb } from '@/server/db';
