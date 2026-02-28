@@ -1,18 +1,19 @@
 import { drizzle } from 'drizzle-orm/d1';
 
-// Import toàn bộ schema để sử dụng type-safe
 import * as users from './schema/users';
+import * as auth from './schema/auth';
 import * as classes from './schema/classes';
 import * as exams from './schema/exams';
+import * as payments from './schema/payments';
 
 const schema = {
   ...users,
+  ...auth,
   ...classes,
-  ...exams
+  ...exams,
+  ...payments
 };
 
-// Khởi tạo connection Drizzle dùng cho Cloudflare Pages/Workers (môi trường Edge)
-// Trong Next.js 15, D1 Database Binding sẽ được inject thông qua process.env hoặc getRequestContext()
 export function createDb(d1: D1Database) {
   return drizzle(d1, { schema });
 }
