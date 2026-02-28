@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
-    "@cloudflare/next-on-pages": "^1.13.16",
+    "@cloudflare/next-on-pages": "beta",
     "@cloudflare/workers-types": "^4.20260226.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
