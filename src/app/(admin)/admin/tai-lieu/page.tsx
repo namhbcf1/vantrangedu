@@ -1,5 +1,5 @@
+'use client';
 export const runtime = "edge";
-"use client";
 
 import { useState } from 'react';
 import { uploadDocumentAction } from './actions';
@@ -26,7 +26,6 @@ export default function DocumentManagerPage() {
     const res = await uploadDocumentAction(formData);
     if (res.success) {
       setMsg({ type: 'success', text: `Tải lên thành công! ID Băng từ: ${res.key}` });
-      // Lệnh reload lại danh sách file sẽ nằm ở đây
     } else {
       setMsg({ type: 'error', text: res.error || 'Thất bại.' });
     }
@@ -34,7 +33,6 @@ export default function DocumentManagerPage() {
 
   return (
     <div className="flex flex-col md:flex-row gap-6">
-      {/* Vùng Quản lý Tải Lên (Dropzone) */}
       <div className="w-full md:w-1/3 p-6 bg-card border rounded-xl shadow-sm">
          <h2 className="text-xl font-bold mb-4">Kho Tài Liệu & Video Bài Giảng</h2>
          <p className="text-sm text-muted-foreground mb-6">Tải lên Giáo trình PDF, Video bài chữa VSTEP. Hệ thống Stream thẳng từ Cloudflare Edge.</p>
@@ -65,7 +63,6 @@ export default function DocumentManagerPage() {
          )}
       </div>
 
-      {/* Vùng File Explorer hiển thị danh sách (Mock UI chờ DB) */}
       <div className="w-full md:w-2/3 p-6 bg-card border rounded-xl shadow-sm">
          <h2 className="text-xl font-bold mb-4">Các Tập Tin Gần Đây (Data Center R2)</h2>
          <div className="space-y-2">
