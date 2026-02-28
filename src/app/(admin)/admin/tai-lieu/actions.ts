@@ -1,4 +1,6 @@
-'use server';
+"use server";
+export const runtime = "edge";
+export const runtime = "edge";
 
 import { uploadFileToR2 } from "@/server/storage/r2";
 import { revalidatePath } from "next/cache";
