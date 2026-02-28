@@ -1,15 +1,14 @@
 import { setupDevPlatform } from '@cloudflare/next-on-pages/next-dev';
 
-// Setup local dev environment cho Cloudflare (chạy D1, R2 dưới local được)
 if (process.env.NODE_ENV === 'development') {
   setupDevPlatform().catch(console.error);
 }
 
 const nextConfig = {
   reactStrictMode: true,
-  // Bảo vệ môi trường Edge, tuân thủ Cloudflare
+  // Cấu hình CHUNKING BẼ GÃY GIỚI HẠN 3MB CLOUDFLARE
   experimental: {
-     // config mở rộng nếu cần
+     serverComponentsExternalPackages: ['drizzle-orm', 'better-sqlite3']
   }
 };
 

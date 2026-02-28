@@ -8,7 +8,6 @@ import * as payments from './schema/payments';
 
 const schema = {
   ...users,
-  ...auth,
   ...classes,
   ...exams,
   ...payments

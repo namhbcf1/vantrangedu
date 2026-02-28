@@ -1,32 +1,25 @@
-import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createDb } from "@/server/db";
+import { SignJWT, jwtVerify } from 'jose';
 
-// Better-Auth config cho Cloudflare Edge
-export function getAuth(d1: D1Database) {
-  const db = createDb(d1);
-  
-  return betterAuth({
-    database: drizzleAdapter(db, {
-      provider: "sqlite",
-    }),
+// BỘ MÁY XÁC THỰC LÕI EDGE SIÊU NHẸ (DƯỚI 50KB)
+// Thay thế hoàn toàn better-auth béo phì 14MB
+
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'vantrangedu-super-secret-key-2026-edge');
+
+export async function createSession(userId: string, role: string, payload: any = {}) {
+  const token = await new SignJWT({ sub: userId, role, ...payload })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('30d') // 30 ngày
+    .sign(SECRET);
     
-    // Tùy biến bảng User (vì chúng ta đã gộp table thành users custom ở Phase 02)
-    user: {
-      additionalFields: {
-        cccd: { type: "string" },
-        phone: { type: "string" },
-        role: { type: "string", defaultValue: "student" },
-        fullName: { type: "string" }
-      }
-    },
-    
-    emailAndPassword: {
-      enabled: true, // Cho Admin/Giáo viên
-      autoSignIn: false,
-    },
-    
-    // Custom Plugin/Hook đặc thù: Học viên đăng nhập bằng (SĐT + CCCD)
-    // Sẽ được chi tiết hóa trong api endpoint
-  });
+  return token;
+}
+
+export async function verifySession(token: string) {
+  try {
+    const { payload } = await jwtVerify(token, SECRET);
+    return payload;
+  } catch (error) {
+    return null;
+  }
 }

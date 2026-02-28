@@ -1,7 +1,6 @@
 export const runtime = "edge";
 import { NextRequest, NextResponse } from "next/server";
 import { getFileFromR2 } from "@/server/storage/r2";
-import { getAuth } from "@/lib/auth";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 
 
@@ -14,7 +13,6 @@ export async function GET(
 
   const ctx = getRequestContext();
   if (ctx && ctx.env && ctx.env.DB) {
-     const auth = getAuth(ctx.env.DB);
      const session = await auth.api.getSession({ headers: request.headers });
      
      if (!session && !decodedKey.startsWith("public/")) {

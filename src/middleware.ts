@@ -1,28 +1,24 @@
-import { getRequestContext } from "@cloudflare/next-on-pages";
 import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "./lib/auth";
-
-// Quay lại chuẩn middleware.ts cũ an toàn trên Cloudflare Pages thay vì proxy.ts (Báo lỗi config segment)
+import { verifySession } from "./lib/auth";
 
 export async function middleware(request: NextRequest) {
-  const ctx = getRequestContext();
-   if (!ctx || !ctx.env || !ctx.env.DB) {
-    return NextResponse.next();
-  }
-
-  const auth = getAuth(ctx.env.DB);
-  const session = await auth.api.getSession({ headers: request.headers });
-  
   const path = request.nextUrl.pathname;
+  const token = request.cookies.get('vte_session')?.value;
+  
+  const payload = token ? await verifySession(token) : null;
 
-  if (!session) {
-    if (path.startsWith("/admin") || path.startsWith("/giao-vien") || path.startsWith("/tai-khoan")) {
-      return NextResponse.redirect(new URL("/", request.url)); 
-    }
-    return NextResponse.next();
+  // 1. Nếu vô Public Page (Trang chủ) -> Đi qua tự do
+  if (!path.startsWith("/admin") && !path.startsWith("/giao-vien") && !path.startsWith("/tai-khoan")) {
+     return NextResponse.next();
   }
 
-  const role = session.user.role || 'student';
+  // 2. Chưa đăng nhập mà đòi vào 3 Cổng Mật -> Quăng ra ngoài
+  if (!payload) {
+    return NextResponse.redirect(new URL("/", request.url)); 
+  }
+
+  // 3. Phân Quyền (RBAC) Cực Gắt
+  const role = payload.role as string;
 
   if (path.startsWith("/admin") && role !== "super_admin" && role !== "admin") {
     return NextResponse.redirect(new URL("/tai-khoan", request.url));
