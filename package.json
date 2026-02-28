@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply vantrangedu_db --remote",
-    "db:migrate:local": "wrangler d1 migrations apply vantrangedu_db --local"
+    "db:migrate:local": "wrangler d1 migrations apply vantrangedu_db --local",
+    "pages:build": "npm install --legacy-peer-deps && npx @cloudflare/next-on-pages@1"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.999.0",
